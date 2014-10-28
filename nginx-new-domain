@@ -1,0 +1,171 @@
+#!/bin/bash
+##
+# @Author: Martin Nakládal <nakladal@intravps.cz>
+# @Version: 1.0
+#
+# Generating the configuration file for the domain to Nginx for Small server !
+##
+
+echo ":. Create new domain .:"
+ 
+#config
+web_root='/var/www'
+config_dir='/etc/nginx' 
+
+if [ -z "$1" ]
+then 
+        echo "Enter domain name (google.com):"
+        read DOMAIN
+         
+        if [ -z "$DOMAIN" ]
+        then   
+                echo "Domain not required"
+                exit 1
+        fi 
+  
+fi
+
+if [ -z "$DOMAIN" ]
+then
+        DOMAIN=$1  
+fi
+ 	echo "Creating Nginx domain settings for: $DOMAIN" 
+
+	DOMAINPATH="$(echo ${DOMAIN} | tr -s '.' '_')"
+ 	echo "Path domain:  $DOMAINPATH "
+
+	 
+	DOMAINEXPL="$(echo ${DOMAIN} | tr -s '.' '\.')"
+	subdomain='$subdomain'
+	uris='$uri'
+	log_access='$subdomain'+'_access_log.log';
+	log_error='$subdomain'+'_/error_log.log';
+
+(
+cat <<EOF
+##
+#  DOMAIN: $DOMAIN
+#  CREATE: $(date +'%d/%m/%Y')
+#  Generated AUTGEN construct by Martin Nakládal
+##
+
+
+server {
+	listen 80;
+	#listen [::]:80 ipv6only=on;
+	listen 443 ssl;
+
+        server_name www.$DOMAIN $DOMAIN;
+
+        index index.php index.html index.htm;
+
+	root $web_root/$DOMAINPATH/public/www;
+	
+        access_log $web_root/$DOMAINPATH/log/access_log.log;
+        error_log $web_root/$DOMAINPATH/log/error_log.log error;
+  
+	ssl_certificate $web_root/$DOMAINPATH/certs/default.crt;
+        ssl_certificate_key $web_root/$DOMAINPATH/certs/default.key;
+	 
+        error_page 404 /404.html;
+
+        error_page 500 502 503 504 /50x.html;
+        location = /50x.html {
+              root /usr/share/nginx/www;
+        }
+ 
+	location / { 
+		try_files $uris $uris/ =404; 
+	}
+
+	# pass the PHP scripts to FastCGI server listening on 127.0.0.1:9000
+	#
+	location ~ \.php$ {
+	    fastcgi_split_path_info ^(.+\.php)(/.+)$;
+	#   # NOTE: You should have "cgi.fix_pathinfo = 0;" in php.ini
+	#
+	#   # With php5-cgi alone:
+	#   fastcgi_pass 127.0.0.1:9000;
+	#   # With php5-fpm:
+	    fastcgi_pass unix:/var/run/php5-fpm.sock;
+	    fastcgi_index index.php;
+	    include fastcgi_params;
+	}
+	location ~ /\.ht {
+            deny all;
+        }
+
+        location ~ /(README|ChangeLog)$ {
+           deny all;
+        }
+	 
+}
+
+server {
+	listen 80;
+	#listen [::]:80 ipv6only=on;
+	listen 443 ssl;
+
+        server_name ~^(www\.)?(?<subdomain>.+)\.$DOMAINEXPL$;  
+
+        index index.php index.html index.htm;
+
+	root $web_root/$DOMAINPATH/public/subdom/$subdomain;
+	
+        access_log $web_root/$DOMAINPATH/log/access_log.log;
+        error_log $web_root/$DOMAINPATH/log/error_log.log error;
+  
+	ssl_certificate $web_root/$DOMAINPATH/certs/default.crt;
+        ssl_certificate_key $web_root/$DOMAINPATH/certs/default.key;
+ 
+        error_page 404 /404.html;
+
+        error_page 500 502 503 504 /50x.html;
+        location = /50x.html {
+              root /usr/share/nginx/www;
+        }
+ 
+	location / { 
+		try_files $uris $uris/ =404; 
+	}
+ 
+	location ~ /\.ht {
+            deny all;
+        }
+
+        location ~ /(README|ChangeLog)$ {
+           deny all;
+        }
+	 
+}
+
+EOF
+) >  $config_dir/sites-available/$DOMAINPATH.conf
+ 
+
+echo "Making web directories"
+mkdir -p $web_root/"$DOMAINPATH"
+mkdir -p $web_root/"$DOMAINPATH"/public
+mkdir -p $web_root/"$DOMAINPATH"/public/www
+mkdir -p $web_root/"$DOMAINPATH"/public/subdom    
+mkdir -p $web_root/"$DOMAINPATH"/certs 
+mkdir -p $web_root/"$DOMAINPATH"/log 
+
+echo "Default SSL certificate - install"
+
+ln -s /etc/nginx/ssl/nginx.key $web_root/"$DOMAINPATH"/certs/default.key
+ln -s /etc/nginx/ssl/nginx.crt $web_root/"$DOMAINPATH"/certs/default.crt 
+
+echo "Create NGINX config"
+
+ln -s $config_dir/sites-available/"$DOMAINPATH".conf $config_dir/sites-enabled/"$DOMAINPATH".conf 
+echo "Nginx - reload"
+/etc/init.d/nginx reload 
+
+echo "Create permissions"
+chown -R www-data:www-data $web_root/"$DOMAINPATH"
+chmod 755 $web_root/"$DOMAINPATH"/public
+
+echo "Permissions have been set"
+echo "$DOMAIN has been setup"
+
