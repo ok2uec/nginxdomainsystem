@@ -26,8 +26,11 @@ domain_tld/
 ## Call website:
 	
 ` www.domain.tld ` -> A1 folder
+
 ` domain.tld ` -> A1 folder
+
 ` subdir1.domain.tld ` -> A2 folder
+
 ` subdir2.domain.tld ` -> A3 folder
 
 ## Support HTTPS
